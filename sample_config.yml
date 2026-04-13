@@ -1,0 +1,65 @@
+# Sample app-interface defaults file for an MSK Connect connector.
+# This would live at e.g.:
+#   resources/terraform/resources/insights/stage/msk-connect-debezium-stage-1.yml
+#
+# The namespace declaration in the corresponding namespace file would look like:
+#
+#   - provider: msk-connect
+#     identifier: debezium-postgres-stage
+#     managed_by_erv2: true
+#     defaults: /terraform/resources/insights/stage/msk-connect-debezium-stage-1.yml
+#     output_resource_name: debezium-postgres-stage-msk-connect
+
+$schema: /aws/msk-connect-defaults-1.yml
+
+kafka_cluster_bootstrap_servers: "b-1.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098,b-2.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098,b-3.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098"
+kafka_connect_version: "2.7.1"
+service_execution_role_arn: "arn:aws:iam::123456789012:role/msk-connect-debezium-stage"
+
+connector_configuration:
+  connector.class: "io.debezium.connector.postgresql.PostgresConnector"
+  tasks.max: "1"
+  database.hostname: "my-db.us-east-1.rds.amazonaws.com"
+  database.port: "5432"
+  database.user: "debezium_user"
+  database.dbname: "inventory"
+  topic.prefix: "debezium-stage"
+  schema.history.internal.kafka.topic: "_schema-history"
+  schema.history.internal.kafka.bootstrap.servers: "b-1.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098"
+
+capacity:
+  autoscaling:
+    min_worker_count: 1
+    max_worker_count: 4
+    mcu_count: 1
+
+vpc:
+  subnets:
+  - subnet-0ce5305f5c698982c
+  - subnet-09c7ac0108282bfd0
+  - subnet-07a8517d4d29e704a
+  security_groups:
+  - sg-003ccbf54999bd14c
+
+custom_plugin:
+  name: debezium-postgres
+  content_type: ZIP
+  location:
+    s3_bucket_arn: "arn:aws:s3:::my-msk-connect-plugins"
+    s3_file_key: "plugins/debezium-connector-postgres-2.5.0.zip"
+    s3_object_version: "abc123def456"
+
+worker_configuration:
+  name: debezium-worker-config
+  properties_file_content: |
+    key.converter=org.apache.kafka.connect.json.JsonConverter
+    value.converter=org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable=false
+    value.converter.schemas.enable=false
+  description: "Worker config for Debezium connectors"
+
+log_delivery:
+  worker_log_delivery:
+    cloudwatch_logs:
+      enabled: true
+      retention_in_days: 7
