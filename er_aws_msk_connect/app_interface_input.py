@@ -6,28 +6,13 @@ from external_resources_io.input import AppInterfaceProvision  # noqa: TC002
 from pydantic import BaseModel, model_validator
 
 
-class CustomPluginLocation(BaseModel):
-    """aws_mskconnect_custom_plugin.location.s3"""
+class CustomPlugin(BaseModel):
+    """aws_mskconnect_custom_plugin - plugin location in S3."""
 
     s3_bucket_arn: str
-    s3_file_key: str
+    s3_key: str
     s3_object_version: str | None = None
-
-
-class CustomPlugin(BaseModel):
-    """aws_mskconnect_custom_plugin"""
-
-    name: str
-    content_type: Literal["ZIP", "JAR"]
-    location: CustomPluginLocation
-
-
-class WorkerConfiguration(BaseModel):
-    """aws_mskconnect_worker_configuration"""
-
-    name: str
-    properties_file_content: str
-    description: str | None = None
+    content_type: Literal["zip", "jar"]
 
 
 class ScaleInPolicy(BaseModel):
@@ -45,8 +30,8 @@ class ScaleOutPolicy(BaseModel):
 class AutoscalingCapacity(BaseModel):
     """aws_mskconnect_connector.capacity.autoscaling"""
 
-    max_worker_count: int
     min_worker_count: int
+    max_worker_count: int
     mcu_count: Literal[1, 2, 4, 8] = 1
     scale_in_policy: ScaleInPolicy = ScaleInPolicy()
     scale_out_policy: ScaleOutPolicy = ScaleOutPolicy()
@@ -55,30 +40,81 @@ class AutoscalingCapacity(BaseModel):
 class ProvisionedCapacity(BaseModel):
     """aws_mskconnect_connector.capacity.provisioned_capacity"""
 
-    worker_count: int
+    worker_count: int = 1
     mcu_count: Literal[1, 2, 4, 8] = 1
 
 
 class Capacity(BaseModel):
-    """aws_mskconnect_connector.capacity"""
+    """aws_mskconnect_connector.capacity - default: provisioned 1 MCU 1 worker."""
 
     autoscaling: AutoscalingCapacity | None = None
     provisioned_capacity: ProvisionedCapacity | None = None
 
     @model_validator(mode="after")
     def exactly_one_capacity_type(self) -> Self:
-        """Validate that exactly one capacity type is set."""
-        if (self.autoscaling is None) == (self.provisioned_capacity is None):
-            msg = "Exactly one of 'autoscaling' or 'provisioned_capacity' must be set"
+        """If neither is set, default to provisioned. If both are set, error."""
+        if self.autoscaling and self.provisioned_capacity:
+            msg = "Only one of 'autoscaling' or 'provisioned_capacity' can be set"
             raise ValueError(msg)
+        if not self.autoscaling and not self.provisioned_capacity:
+            self.provisioned_capacity = ProvisionedCapacity()
         return self
+
+
+VALID_CLOUDWATCH_RETENTION_DAYS = {
+    1,
+    3,
+    5,
+    7,
+    14,
+    30,
+    60,
+    90,
+    120,
+    150,
+    180,
+    365,
+    400,
+    545,
+    731,
+    1096,
+    1827,
+    2192,
+    2557,
+    2922,
+    3288,
+    3653,
+}
 
 
 class CloudwatchLogsLogDelivery(BaseModel):
     """aws_mskconnect_connector.log_delivery.worker_log_delivery.cloudwatch_logs"""
 
     enabled: bool
-    retention_in_days: int
+    retention_in_days: Literal[
+        1,
+        3,
+        5,
+        7,
+        14,
+        30,
+        60,
+        90,
+        120,
+        150,
+        180,
+        365,
+        400,
+        545,
+        731,
+        1096,
+        1827,
+        2192,
+        2557,
+        2922,
+        3288,
+        3653,
+    ]
 
 
 class S3LogDelivery(BaseModel):
@@ -89,17 +125,11 @@ class S3LogDelivery(BaseModel):
     prefix: str | None = None
 
 
-class WorkerLogDelivery(BaseModel):
-    """aws_mskconnect_connector.log_delivery.worker_log_delivery"""
-
-    cloudwatch_logs: CloudwatchLogsLogDelivery | None = None
-    s3: S3LogDelivery | None = None
-
-
 class LogDelivery(BaseModel):
     """aws_mskconnect_connector.log_delivery"""
 
-    worker_log_delivery: WorkerLogDelivery
+    cloudwatch_logs: CloudwatchLogsLogDelivery | None = None
+    s3: S3LogDelivery | None = None
 
 
 class VpcConfig(BaseModel):
@@ -110,33 +140,45 @@ class VpcConfig(BaseModel):
 
 
 class MskConnectData(BaseModel):
-    """Data model for AWS MSK Connect"""
+    """Data model for AWS MSK Connect.
 
-    # app-interface
-    region: str
+    Fields populated by qontract-reconcile (resolved from references):
+    - kafka_cluster_bootstrap_servers: from MSK cluster vault output secret
+    - vpc: subnets + security_groups from MSK cluster defaults
+    - service_execution_role: IAM role identifier, resolved to ARN via Terraform data source
+
+    Fields with defaults in this module:
+    - kafka_connect_version: "3.7.1"
+    - capacity: provisioned, 1 MCU, 1 worker
+    """
+
+    # app-interface metadata
     identifier: str
-    output_resource_name: str | None = None
-    output_prefix: str
+    region: str
+    tags: dict[str, str] = {}
 
-    # connector config
-    connector_configuration: dict[str, str]
+    # resolved by qontract-reconcile from msk_cluster reference
     kafka_cluster_bootstrap_servers: str
-    kafka_connect_version: str
-    service_execution_role_arn: str
-    capacity: Capacity
     vpc: VpcConfig
 
-    # sub-resources
-    custom_plugin: CustomPlugin
-    worker_configuration: WorkerConfiguration | None = None
+    # resolved by qontract-reconcile from service_execution_role reference
+    service_execution_role: str
 
-    # optional
+    # connector config (from tenant defaults file)
+    connector_configuration: dict[str, str]
+    kafka_connect_version: Literal["2.7.1", "3.7.x"] = "3.7.x"
+
+    # custom plugin (from tenant defaults file, s3_bucket_arn built by reconcile)
+    custom_plugin: CustomPlugin
+
+    # optional (defaults in this module)
+    capacity: Capacity = Capacity()
+    worker_configuration: str | None = None
     log_delivery: LogDelivery | None = None
-    tags: dict[str, str] = {}
 
 
 class AppInterfaceInput(BaseModel):
-    """Input model for AWS MSK Connect"""
+    """Input model for AWS MSK Connect."""
 
     data: MskConnectData
     provision: AppInterfaceProvision

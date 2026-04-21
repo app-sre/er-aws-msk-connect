@@ -5,46 +5,50 @@ provider "aws" {
   }
 }
 
+# Look up the IAM role ARN from the role identifier
+data "aws_iam_role" "execution_role" {
+  name = var.service_execution_role
+}
+
+# Custom plugin
 resource "aws_mskconnect_custom_plugin" "this" {
-  name         = "${var.identifier}-${var.custom_plugin.name}"
-  content_type = var.custom_plugin.content_type
+  name         = "${var.identifier}-plugin"
+  content_type = upper(var.custom_plugin.content_type)
 
   location {
     s3 {
-      bucket_arn     = var.custom_plugin.location.s3_bucket_arn
-      file_key       = var.custom_plugin.location.s3_file_key
-      object_version = var.custom_plugin.location.s3_object_version
+      bucket_arn     = var.custom_plugin.s3_bucket_arn
+      file_key       = var.custom_plugin.s3_key
+      object_version = var.custom_plugin.s3_object_version
     }
   }
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
+# Worker configuration (optional)
 resource "aws_mskconnect_worker_configuration" "this" {
   count                   = var.worker_configuration != null ? 1 : 0
-  name                    = "${var.identifier}-${var.worker_configuration.name}"
-  properties_file_content = var.worker_configuration.properties_file_content
-  description             = var.worker_configuration.description
-
-  lifecycle {
-    create_before_destroy = true
-  }
+  name                    = "${var.identifier}-wc"
+  properties_file_content = var.worker_configuration
 }
 
+# CloudWatch log group (optional)
 resource "aws_cloudwatch_log_group" "this" {
-  count             = try(var.log_delivery.worker_log_delivery.cloudwatch_logs.enabled, false) ? 1 : 0
-  name              = "${var.identifier}-msk-connect-logs"
-  retention_in_days = var.log_delivery.worker_log_delivery.cloudwatch_logs.retention_in_days
-  tags              = var.tags
+  count             = try(var.log_delivery.cloudwatch_logs.enabled, false) ? 1 : 0
+  name              = "${var.identifier}-logs"
+  retention_in_days = var.log_delivery.cloudwatch_logs.retention_in_days
 }
 
+# The connector
 resource "aws_mskconnect_connector" "this" {
   name                       = var.identifier
   kafkaconnect_version       = var.kafka_connect_version
-  service_execution_role_arn = var.service_execution_role_arn
-  connector_configuration    = var.connector_configuration
+  service_execution_role_arn = data.aws_iam_role.execution_role.arn
+  connector_configuration    = merge(
+    var.connector_configuration,
+    {
+      "confluent.topic.bootstrap.servers" = var.kafka_cluster_bootstrap_servers
+    }
+  )
 
   kafka_cluster {
     apache_kafka_cluster {
@@ -76,8 +80,8 @@ resource "aws_mskconnect_connector" "this" {
     for_each = var.capacity.autoscaling != null ? [1] : []
     content {
       autoscaling {
-        max_worker_count = var.capacity.autoscaling.max_worker_count
         min_worker_count = var.capacity.autoscaling.min_worker_count
+        max_worker_count = var.capacity.autoscaling.max_worker_count
         mcu_count        = var.capacity.autoscaling.mcu_count
         scale_in_policy {
           cpu_utilization_percentage = var.capacity.autoscaling.scale_in_policy.cpu_utilization_percentage
@@ -114,18 +118,18 @@ resource "aws_mskconnect_connector" "this" {
     content {
       worker_log_delivery {
         dynamic "cloudwatch_logs" {
-          for_each = try(var.log_delivery.worker_log_delivery.cloudwatch_logs.enabled, false) ? [1] : []
+          for_each = try(var.log_delivery.cloudwatch_logs.enabled, false) ? [1] : []
           content {
             enabled   = true
             log_group = aws_cloudwatch_log_group.this[0].name
           }
         }
         dynamic "s3" {
-          for_each = try(var.log_delivery.worker_log_delivery.s3.enabled, false) ? [1] : []
+          for_each = try(var.log_delivery.s3.enabled, false) ? [1] : []
           content {
             enabled = true
-            bucket  = var.log_delivery.worker_log_delivery.s3.bucket
-            prefix  = var.log_delivery.worker_log_delivery.s3.prefix
+            bucket  = var.log_delivery.s3.bucket
+            prefix  = var.log_delivery.s3.prefix
           }
         }
       }
