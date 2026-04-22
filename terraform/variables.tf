@@ -1,5 +1,5 @@
 variable "capacity" {
-  type = object({ autoscaling = object({ min_worker_count = number, max_worker_count = number, mcu_count = string, scale_in_policy = object({ cpu_utilization_percentage = number }), scale_out_policy = object({ cpu_utilization_percentage = number }) }), provisioned_capacity = object({ worker_count = number, mcu_count = string }) })
+  type = object({ autoscaling = object({ min_worker_count = number, max_worker_count = number, mcu_count = number, scale_in_policy = object({ cpu_utilization_percentage = number }), scale_out_policy = object({ cpu_utilization_percentage = number }) }), provisioned_capacity = object({ worker_count = number, mcu_count = number }) })
   default = {
     autoscaling = null
     provisioned_capacity = {
@@ -31,7 +31,7 @@ variable "kafka_connect_version" {
 }
 
 variable "log_delivery" {
-  type    = object({ cloudwatch_logs = object({ enabled = bool, retention_in_days = string }), s3 = object({ enabled = bool, bucket = string, prefix = string }) })
+  type    = object({ cloudwatch_logs = object({ enabled = bool, retention_in_days = number }), s3 = object({ enabled = bool, bucket = string, prefix = string }) })
   default = null
 }
 
