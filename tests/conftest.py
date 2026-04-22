@@ -11,8 +11,6 @@ def raw_input_data() -> dict:
         "data": {
             "region": "us-east-1",
             "identifier": "my-test-connector",
-            "output_resource_name": "creds-msk-connect",
-            "output_prefix": "my-test-connector-msk-connect",
             "connector_configuration": {
                 "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
                 "tasks.max": "1",
@@ -24,7 +22,7 @@ def raw_input_data() -> dict:
             },
             "kafka_cluster_bootstrap_servers": "b-1.msk.us-east-1.amazonaws.com:9098,b-2.msk.us-east-1.amazonaws.com:9098",
             "kafka_connect_version": "2.7.1",
-            "service_execution_role_arn": "arn:aws:iam::123456789012:role/my-msk-connect-role",
+            "service_execution_role": "my-msk-connect-role",
             "capacity": {
                 "autoscaling": {
                     "max_worker_count": 4,
@@ -39,25 +37,16 @@ def raw_input_data() -> dict:
                 "security_groups": ["sg-111"],
             },
             "custom_plugin": {
-                "name": "debezium-plugin",
-                "content_type": "ZIP",
-                "location": {
-                    "s3_bucket_arn": "arn:aws:s3:::my-plugins-bucket",
-                    "s3_file_key": "plugins/debezium-connector-postgres-2.5.0.zip",
-                    "s3_object_version": "abc123",
-                },
+                "content_type": "zip",
+                "s3_bucket_arn": "arn:aws:s3:::my-plugins-bucket",
+                "s3_key": "plugins/debezium-connector-postgres-2.5.0.zip",
+                "s3_object_version": "abc123",
             },
-            "worker_configuration": {
-                "name": "my-worker-config",
-                "properties_file_content": "key.converter=org.apache.kafka.connect.storage.StringConverter\nvalue.converter=org.apache.kafka.connect.storage.StringConverter",
-                "description": "Custom worker configuration",
-            },
+            "worker_configuration": "key.converter=org.apache.kafka.connect.storage.StringConverter\nvalue.converter=org.apache.kafka.connect.storage.StringConverter",
             "log_delivery": {
-                "worker_log_delivery": {
-                    "cloudwatch_logs": {
-                        "enabled": True,
-                        "retention_in_days": 7,
-                    },
+                "cloudwatch_logs": {
+                    "enabled": True,
+                    "retention_in_days": 7,
                 },
             },
             "tags": {

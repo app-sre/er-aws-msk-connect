@@ -1,65 +1,58 @@
 # Sample app-interface defaults file for an MSK Connect connector.
-# This would live at e.g.:
-#   resources/terraform/resources/insights/stage/msk-connect-debezium-stage-1.yml
 #
-# The namespace declaration in the corresponding namespace file would look like:
+# Tenant only needs to configure:
+#   - custom_plugin: where the plugin JAR/ZIP lives in S3
+#   - connector_configuration: plugin-specific key-value pairs
+#
+# Everything else has sensible defaults or is resolved automatically:
+#   - kafka_cluster_bootstrap_servers: resolved from msk_cluster reference (vault secret)
+#   - vpc (subnets, security_groups): resolved from msk_cluster reference (MSK defaults)
+#   - service_execution_role: resolved from service_execution_role reference (IAM role identifier)
+#   - kafka_connect_version: defaults to "3.7.1"
+#   - capacity: defaults to provisioned, 1 MCU, 1 worker
+#
+# Namespace file example:
 #
 #   - provider: msk-connect
-#     identifier: debezium-postgres-stage
+#     identifier: my-s3-sink
 #     managed_by_erv2: true
-#     defaults: /terraform/resources/insights/stage/msk-connect-debezium-stage-1.yml
-#     output_resource_name: debezium-postgres-stage-msk-connect
+#     defaults: /terraform/msk-connect/s3-sink.yml
+#     msk_cluster: my-kafka-cluster              # identifier of MSK cluster in same block
+#     service_execution_role: my-connector-role   # identifier of aws-iam-role in same block
 
 $schema: /aws/msk-connect-defaults-1.yml
 
-kafka_cluster_bootstrap_servers: "b-1.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098,b-2.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098,b-3.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098"
-kafka_connect_version: "2.7.1"
-service_execution_role_arn: "arn:aws:iam::123456789012:role/msk-connect-debezium-stage"
+custom_plugin:
+  s3_bucket: my-msk-connect-plugins
+  s3_key: plugins/confluentinc-kafka-connect-s3-10.5.7.zip
+  content_type: zip
 
 connector_configuration:
-  connector.class: "io.debezium.connector.postgresql.PostgresConnector"
+  connector.class: com.github.jcustenborder.kafka.connect.transform.common.BytesToString
   tasks.max: "1"
-  database.hostname: "my-db.us-east-1.rds.amazonaws.com"
-  database.port: "5432"
-  database.user: "debezium_user"
-  database.dbname: "inventory"
-  topic.prefix: "debezium-stage"
-  schema.history.internal.kafka.topic: "_schema-history"
-  schema.history.internal.kafka.bootstrap.servers: "b-1.consoledot-stage.abc123.kafka.us-east-1.amazonaws.com:9098"
-
-capacity:
-  autoscaling:
-    min_worker_count: 1
-    max_worker_count: 4
-    mcu_count: 1
-
-vpc:
-  subnets:
-  - subnet-0ce5305f5c698982c
-  - subnet-09c7ac0108282bfd0
-  - subnet-07a8517d4d29e704a
-  security_groups:
-  - sg-003ccbf54999bd14c
-
-custom_plugin:
-  name: debezium-postgres
-  content_type: ZIP
-  location:
-    s3_bucket_arn: "arn:aws:s3:::my-msk-connect-plugins"
-    s3_file_key: "plugins/debezium-connector-postgres-2.5.0.zip"
-    s3_object_version: "abc123def456"
-
-worker_configuration:
-  name: debezium-worker-config
-  properties_file_content: |
-    key.converter=org.apache.kafka.connect.json.JsonConverter
-    value.converter=org.apache.kafka.connect.json.JsonConverter
-    key.converter.schemas.enable=false
-    value.converter.schemas.enable=false
-  description: "Worker config for Debezium connectors"
+  topics: my-topic
+  s3.bucket.name: my-data-lake
+  s3.region: us-east-1
+  flush.size: "1000"
+  storage.class: io.confluent.connect.s3.storage.S3Storage
+  format.class: io.confluent.connect.s3.format.json.JsonFormat
 
 log_delivery:
-  worker_log_delivery:
-    cloudwatch_logs:
-      enabled: true
-      retention_in_days: 7
+  cloudwatch_logs:
+    enabled: true
+    retention_in_days: 7
+
+# Optional overrides (all have defaults):
+
+# kafka_connect_version: "3.7.1"
+
+# capacity:
+#   autoscaling:
+#     min_worker_count: 1
+#     max_worker_count: 4
+
+# worker_configuration: |
+#   key.converter=org.apache.kafka.connect.json.JsonConverter
+#   value.converter=org.apache.kafka.connect.json.JsonConverter
+#   key.converter.schemas.enable=false
+#   value.converter.schemas.enable=false

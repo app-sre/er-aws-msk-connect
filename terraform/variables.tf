@@ -1,5 +1,12 @@
 variable "capacity" {
-  type = object({ autoscaling = object({ max_worker_count = number, min_worker_count = number, mcu_count = string, scale_in_policy = object({ cpu_utilization_percentage = number }), scale_out_policy = object({ cpu_utilization_percentage = number }) }), provisioned_capacity = object({ worker_count = number, mcu_count = string }) })
+  type = object({ autoscaling = object({ min_worker_count = number, max_worker_count = number, mcu_count = number, scale_in_policy = object({ cpu_utilization_percentage = number }), scale_out_policy = object({ cpu_utilization_percentage = number }) }), provisioned_capacity = object({ worker_count = number, mcu_count = number }) })
+  default = {
+    autoscaling = null
+    provisioned_capacity = {
+      worker_count = 1
+      mcu_count    = 1
+    }
+  }
 }
 
 variable "connector_configuration" {
@@ -7,7 +14,7 @@ variable "connector_configuration" {
 }
 
 variable "custom_plugin" {
-  type = object({ name = string, content_type = string, location = object({ s3_bucket_arn = string, s3_file_key = string, s3_object_version = string }) })
+  type = object({ s3_bucket_arn = string, s3_key = string, s3_object_version = string, content_type = string })
 }
 
 variable "identifier" {
@@ -19,20 +26,12 @@ variable "kafka_cluster_bootstrap_servers" {
 }
 
 variable "kafka_connect_version" {
-  type = string
+  type    = string
+  default = "3.7.x"
 }
 
 variable "log_delivery" {
-  type    = object({ worker_log_delivery = object({ cloudwatch_logs = object({ enabled = bool, retention_in_days = number }), s3 = object({ enabled = bool, bucket = string, prefix = string }) }) })
-  default = null
-}
-
-variable "output_prefix" {
-  type = string
-}
-
-variable "output_resource_name" {
-  type    = string
+  type    = object({ cloudwatch_logs = object({ enabled = bool, retention_in_days = number }), s3 = object({ enabled = bool, bucket = string, prefix = string }) })
   default = null
 }
 
@@ -40,7 +39,7 @@ variable "region" {
   type = string
 }
 
-variable "service_execution_role_arn" {
+variable "service_execution_role" {
   type = string
 }
 
@@ -54,6 +53,6 @@ variable "vpc" {
 }
 
 variable "worker_configuration" {
-  type    = object({ name = string, properties_file_content = string, description = string })
+  type    = string
   default = null
 }
