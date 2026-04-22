@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 REQUIRED_KAFKA_ACTIONS = [
     "kafka-cluster:Connect",
     "kafka-cluster:DescribeCluster",
-    "kafka-cluster:AlterCluster",
     "kafka-cluster:ReadData",
     "kafka-cluster:WriteData",
     "kafka-cluster:DescribeTopic",
@@ -188,8 +187,8 @@ class MskConnectPlanValidator:
         try:
             role = self.aws_api.iam_client.get_role(RoleName=role_name)
             return role["Role"]["Arn"]
-        except Exception:  # noqa: BLE001
-            logger.warning(f"Could not look up IAM role '{role_name}'")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not look up IAM role '{role_name}': {e}")
             return None
 
     def _validate_s3_plugin(self) -> None:
@@ -270,7 +269,10 @@ class MskConnectPlanValidator:
             if role_arn := self._get_execution_role_arn():
                 self._validate_iam_permissions(role_arn=role_arn)
             else:
-                self.errors.append("Execution role ARN not found in terraform plan")
+                self.errors.append(
+                    f"Could not retrieve ARN for IAM role '{self.input.data.service_execution_role}'"
+                    " — verify the role exists and the execution account has iam:GetRole"
+                )
         return not self.errors
 
 

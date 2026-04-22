@@ -43,7 +43,10 @@ resource "aws_mskconnect_connector" "this" {
   name                       = var.identifier
   kafkaconnect_version       = var.kafka_connect_version
   service_execution_role_arn = data.aws_iam_role.execution_role.arn
-  connector_configuration    = merge(
+  # Note: confluent.topic.bootstrap.servers is required by Confluent connectors
+  # for their internal topic. Most non-Confluent connectors ignore unknown keys,
+  # but connectors with strict config validation may reject it.
+  connector_configuration = merge(
     var.connector_configuration,
     {
       "confluent.topic.bootstrap.servers" = var.kafka_cluster_bootstrap_servers

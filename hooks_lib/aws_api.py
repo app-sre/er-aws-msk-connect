@@ -20,6 +20,9 @@ class AWSApi:
     def __init__(self, config_options: Mapping[str, Any]) -> None:
         self.session = Session()
         self.config = BotocoreConfig(**config_options)
+        self.region_name: str = (
+            config_options.get("region_name") or self.session.region_name or ""
+        )
 
     @property
     def ec2_client(self) -> EC2Client:
@@ -61,13 +64,14 @@ class AWSApi:
         (e.g., "allowed", "implicitDeny", "explicitDeny").
         """
         results: dict[str, str] = {}
-        response = self.iam_client.simulate_principal_policy(
+        paginator = self.iam_client.get_paginator("simulate_principal_policy")
+        for page in paginator.paginate(
             PolicySourceArn=role_arn,
             ActionNames=list(action_names),
             ResourceArns=list(resource_arns),
-        )
-        for result in response["EvaluationResults"]:
-            results[result["EvalActionName"]] = result["EvalDecision"]
+        ):
+            for result in page["EvaluationResults"]:
+                results[result["EvalActionName"]] = result["EvalDecision"]
         return results
 
     def check_s3_vpc_endpoint(self, vpc_id: str) -> bool:
@@ -77,7 +81,7 @@ class AWSApi:
                 {"Name": "vpc-id", "Values": [vpc_id]},
                 {
                     "Name": "service-name",
-                    "Values": [f"com.amazonaws.{self.config.region_name}.s3"],
+                    "Values": [f"com.amazonaws.{self.region_name}.s3"],
                 },
                 {"Name": "vpc-endpoint-type", "Values": ["Gateway"]},
             ]

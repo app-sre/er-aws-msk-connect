@@ -8,8 +8,6 @@ Most MSK Connect resources force replacement on any change:
 - **`aws_mskconnect_worker_configuration`**: ALL arguments force replacement.
 - **`aws_mskconnect_connector`**: Only `capacity` and `connector_configuration` can be updated in-place. Everything else (name, kafka_cluster, plugins, worker_config, service_execution_role, encryption, auth) forces replacement.
 
-Both the custom plugin and worker configuration resources use `create_before_destroy` lifecycle rules and identifier-prefixed naming to handle replacements safely.
-
 ## Single Plugin Per Connector
 
 AWS MSK Connect supports multiple plugins per connector, but this module only supports one.
