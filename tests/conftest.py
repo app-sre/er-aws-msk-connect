@@ -20,6 +20,7 @@ def raw_input_data() -> dict:
                 "database.dbname": "mydb",
                 "topic.prefix": "my-prefix",
             },
+            "msk_cluster": "app-int-example-01-msk",
             "kafka_cluster_bootstrap_servers": "b-1.msk.us-east-1.amazonaws.com:9098,b-2.msk.us-east-1.amazonaws.com:9098",
             "kafka_connect_version": "2.7.1",
             "service_execution_role": "my-msk-connect-role",

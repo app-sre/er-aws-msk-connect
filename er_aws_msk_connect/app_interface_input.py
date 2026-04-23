@@ -132,6 +132,7 @@ class MskConnectData(BaseModel):
     tags: dict[str, str] = {}
 
     # resolved by qontract-reconcile from msk_cluster reference
+    msk_cluster: str
     kafka_cluster_bootstrap_servers: str
     vpc: VpcConfig
 

@@ -22,14 +22,21 @@ from hooks_lib.aws_api import AWSApi
 
 logger = logging.getLogger(__name__)
 
-# Minimum required kafka-cluster IAM actions for MSK Connect
-REQUIRED_KAFKA_ACTIONS = [
+# Minimum required kafka-cluster IAM actions for MSK Connect,
+# grouped by MSK resource type for resource-scoped permission checks.
+REQUIRED_KAFKA_CLUSTER_ACTIONS = [
     "kafka-cluster:Connect",
     "kafka-cluster:DescribeCluster",
+]
+
+REQUIRED_KAFKA_TOPIC_ACTIONS = [
     "kafka-cluster:ReadData",
     "kafka-cluster:WriteData",
     "kafka-cluster:DescribeTopic",
     "kafka-cluster:CreateTopic",
+]
+
+REQUIRED_KAFKA_GROUP_ACTIONS = [
     "kafka-cluster:DescribeGroup",
     "kafka-cluster:AlterGroup",
 ]
@@ -114,21 +121,52 @@ class MskConnectPlanValidator:
                     f"Security group {sg.get('GroupId')} does not belong to the same VPC as the subnets"
                 )
 
+    @staticmethod
+    def _build_kafka_resource_arns(
+        role_arn: str, region: str, msk_cluster: str
+    ) -> dict[str, list[str]]:
+        """Build resource ARNs for kafka-cluster action groups.
+
+        Constructs resource ARNs from the account ID (extracted from the
+        role ARN), the region, and the MSK cluster name. Uses a dummy UUID
+        and resource name that will match IAM policies with wildcard patterns
+        like ``arn:aws:kafka:REGION:ACCOUNT:cluster/NAME/*``.
+        """
+        account_id = role_arn.split(":")[4]
+        arn_base = f"arn:aws:kafka:{region}:{account_id}"
+        return {
+            "cluster": [f"{arn_base}:cluster/{msk_cluster}/dummy-uuid"],
+            "topic": [f"{arn_base}:topic/{msk_cluster}/dummy-uuid/test-topic"],
+            "group": [f"{arn_base}:group/{msk_cluster}/dummy-uuid/test-group"],
+        }
+
     def _validate_iam_permissions(self, role_arn: str) -> None:  # noqa: C901
         """Validate that the service execution role has the required IAM permissions."""
         logger.info(f"Validating IAM permissions for role {role_arn}")
 
-        # Check kafka-cluster actions (resource: *)
-        kafka_results = self.aws_api.simulate_principal_policy(
+        resource_arns = self._build_kafka_resource_arns(
             role_arn=role_arn,
-            action_names=REQUIRED_KAFKA_ACTIONS,
-            resource_arns=["*"],
+            region=self.input.data.region,
+            msk_cluster=self.input.data.msk_cluster,
         )
-        for action, decision in kafka_results.items():
-            if decision != "allowed":
-                self.errors.append(
-                    f"IAM role {role_arn} missing permission: {action} (result: {decision})"
-                )
+
+        # Check kafka-cluster actions per resource type
+        kafka_action_groups: list[tuple[list[str], list[str]]] = [
+            (REQUIRED_KAFKA_CLUSTER_ACTIONS, resource_arns["cluster"]),
+            (REQUIRED_KAFKA_TOPIC_ACTIONS, resource_arns["topic"]),
+            (REQUIRED_KAFKA_GROUP_ACTIONS, resource_arns["group"]),
+        ]
+        for actions, res_arns in kafka_action_groups:
+            results = self.aws_api.simulate_principal_policy(
+                role_arn=role_arn,
+                action_names=actions,
+                resource_arns=res_arns,
+            )
+            for action, decision in results.items():
+                if decision != "allowed":
+                    self.errors.append(
+                        f"IAM role {role_arn} missing permission: {action} (result: {decision})"
+                    )
 
         # Check S3 plugin access
         plugin = self.input.data.custom_plugin
