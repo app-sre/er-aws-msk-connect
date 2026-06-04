@@ -77,6 +77,21 @@ def raw_input_data() -> dict:
 
 
 @pytest.fixture
+def raw_govcloud_input_data(raw_input_data: dict) -> dict:
+    """GovCloud variant of raw_input_data with an aws-us-gov plugin bucket ARN."""
+    raw_input_data["data"]["custom_plugin"]["s3_bucket_arn"] = (
+        "arn:aws-us-gov:s3:::my-plugins-bucket"
+    )
+    return raw_input_data
+
+
+@pytest.fixture
 def ai_input(raw_input_data: dict) -> AppInterfaceInput:
     """Fixture to provide the AppInterfaceInput."""
     return parse_model(AppInterfaceInput, raw_input_data)
+
+
+@pytest.fixture
+def govcloud_ai_input(raw_govcloud_input_data: dict) -> AppInterfaceInput:
+    """Fixture to provide a GovCloud AppInterfaceInput."""
+    return parse_model(AppInterfaceInput, raw_govcloud_input_data)
