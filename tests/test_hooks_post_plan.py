@@ -284,3 +284,39 @@ def test_validate_iam_permissions_missing_permission(
     assert len(validator.errors) == 1
     assert "kafka-cluster:Connect" in validator.errors[0]
     assert "implicitDeny" in validator.errors[0]
+
+
+def test_validate_iam_permissions_uses_govcloud_plugin_bucket_arn(
+    govcloud_ai_input: AppInterfaceInput,
+    mock_terraform_plan_parser: MagicMock,
+    mock_aws_api: MagicMock,
+) -> None:
+    """IAM simulation must use the plugin bucket ARN from input, including partition."""
+    data = govcloud_ai_input.data
+    subnets = data.vpc.subnets
+    security_groups = data.vpc.security_groups
+    expected_s3_resource_arn = f"{data.custom_plugin.s3_bucket_arn}/*"
+
+    mock_aws_api.return_value.get_subnets.return_value = [
+        {"SubnetId": s, "VpcId": "vpc-123"} for s in subnets
+    ]
+    mock_aws_api.return_value.get_security_groups.return_value = [
+        {"GroupId": sg, "VpcId": "vpc-123"} for sg in security_groups
+    ]
+    mock_aws_api.return_value.validate_s3_object.return_value = True
+    _setup_iam_mocks(mock_aws_api)
+
+    mock_terraform_plan_parser.plan.resource_changes = [
+        _make_connector_change(subnets, security_groups)
+    ]
+
+    validator = MskConnectPlanValidator(mock_terraform_plan_parser, govcloud_ai_input)
+    assert validator.validate()
+
+    calls = mock_aws_api.return_value.simulate_principal_policy.call_args_list
+    s3_plugin_calls = [
+        call
+        for call in calls
+        if call.kwargs.get("resource_arns") == [expected_s3_resource_arn]
+    ]
+    assert len(s3_plugin_calls) == 1

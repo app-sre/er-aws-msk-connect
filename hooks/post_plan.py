@@ -122,6 +122,11 @@ class MskConnectPlanValidator:
                 )
 
     @staticmethod
+    def _arn_partition(arn: str) -> str:
+        """Return the partition segment from an ARN (e.g. ``aws`` or ``aws-us-gov``)."""
+        return arn.split(":")[1]
+
+    @staticmethod
     def _build_kafka_resource_arns(
         role_arn: str, region: str, msk_cluster: str
     ) -> dict[str, list[str]]:
@@ -130,10 +135,11 @@ class MskConnectPlanValidator:
         Constructs resource ARNs from the account ID (extracted from the
         role ARN), the region, and the MSK cluster name. Uses a dummy UUID
         and resource name that will match IAM policies with wildcard patterns
-        like ``arn:aws:kafka:REGION:ACCOUNT:cluster/NAME/*``.
+        like ``arn:PARTITION:kafka:REGION:ACCOUNT:cluster/NAME/*``.
         """
+        partition = MskConnectPlanValidator._arn_partition(role_arn)
         account_id = role_arn.split(":")[4]
-        arn_base = f"arn:aws:kafka:{region}:{account_id}"
+        arn_base = f"arn:{partition}:kafka:{region}:{account_id}"
         return {
             "cluster": [f"{arn_base}:cluster/{msk_cluster}/dummy-uuid"],
             "topic": [f"{arn_base}:topic/{msk_cluster}/dummy-uuid/test-topic"],
@@ -170,8 +176,7 @@ class MskConnectPlanValidator:
 
         # Check S3 plugin access
         plugin = self.input.data.custom_plugin
-        bucket_name = plugin.s3_bucket_arn.split(":")[-1]
-        s3_resource_arn = f"arn:aws:s3:::{bucket_name}/*"
+        s3_resource_arn = f"{plugin.s3_bucket_arn}/*"
         s3_results = self.aws_api.simulate_principal_policy(
             role_arn=role_arn,
             action_names=REQUIRED_S3_ACTIONS,
@@ -206,7 +211,10 @@ class MskConnectPlanValidator:
             and self.input.data.log_delivery.s3
             and self.input.data.log_delivery.s3.enabled
         ):
-            log_bucket_arn = f"arn:aws:s3:::{self.input.data.log_delivery.s3.bucket}/*"
+            partition = self._arn_partition(role_arn)
+            log_bucket_arn = (
+                f"arn:{partition}:s3:::{self.input.data.log_delivery.s3.bucket}/*"
+            )
             s3_log_results = self.aws_api.simulate_principal_policy(
                 role_arn=role_arn,
                 action_names=REQUIRED_S3_LOG_ACTIONS,
