@@ -166,9 +166,7 @@ class MskConnectData(BaseModel):
             self.region,
         )
         if normalized_arn != self.custom_plugin.s3_bucket_arn:
-            self.custom_plugin = self.custom_plugin.model_copy(
-                update={"s3_bucket_arn": normalized_arn}
-            )
+            self.custom_plugin.s3_bucket_arn = normalized_arn
         return self
 
 
