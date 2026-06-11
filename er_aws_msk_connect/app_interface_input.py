@@ -6,6 +6,13 @@ from external_resources_io.input import AppInterfaceProvision
 from pydantic import BaseModel, model_validator
 
 
+def _normalize_s3_bucket_arn(bucket_arn: str, region: str) -> str:
+    """Build the S3 bucket ARN using the partition for the target region."""
+    bucket_name = bucket_arn.rsplit(":", 1)[-1]
+    partition = "aws-us-gov" if region.startswith("us-gov-") else "aws"
+    return f"arn:{partition}:s3:::{bucket_name}"
+
+
 class CustomPlugin(BaseModel):
     """aws_mskconnect_custom_plugin - plugin location in S3."""
 
@@ -143,13 +150,24 @@ class MskConnectData(BaseModel):
     connector_configuration: dict[str, str]
     kafka_connect_version: Literal["2.7.1", "3.7.x"] = "3.7.x"
 
-    # custom plugin (from tenant defaults file, s3_bucket_arn built by reconcile)
+    # custom plugin (from tenant defaults file; s3_bucket_arn normalized to region partition)
     custom_plugin: CustomPlugin
 
     # optional (defaults in this module)
     capacity: Capacity = Capacity()
     worker_configuration: str | None = None
     log_delivery: LogDelivery | None = None
+
+    @model_validator(mode="after")
+    def normalize_custom_plugin_s3_bucket_arn(self) -> Self:
+        """Ensure the plugin bucket ARN uses the partition for the deployment region."""
+        normalized_arn = _normalize_s3_bucket_arn(
+            self.custom_plugin.s3_bucket_arn,
+            self.region,
+        )
+        if normalized_arn != self.custom_plugin.s3_bucket_arn:
+            self.custom_plugin.s3_bucket_arn = normalized_arn
+        return self
 
 
 class AppInterfaceInput(BaseModel):

@@ -78,9 +78,10 @@ def raw_input_data() -> dict:
 
 @pytest.fixture
 def raw_govcloud_input_data(raw_input_data: dict) -> dict:
-    """GovCloud variant of raw_input_data with an aws-us-gov plugin bucket ARN."""
+    """GovCloud variant simulating reconcile supplying a commercial-partition S3 ARN."""
+    raw_input_data["data"]["region"] = "us-gov-west-1"
     raw_input_data["data"]["custom_plugin"]["s3_bucket_arn"] = (
-        "arn:aws-us-gov:s3:::my-plugins-bucket"
+        "arn:aws:s3:::my-plugins-bucket"
     )
     return raw_input_data
 
