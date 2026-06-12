@@ -194,15 +194,19 @@ class MskConnectPlanValidator:
             and self.input.data.log_delivery.cloudwatch_logs
             and self.input.data.log_delivery.cloudwatch_logs.enabled
         ):
+            partition = self._arn_partition(role_arn)
+            account_id = role_arn.split(":")[4]
+            log_group_name = f"{self.input.data.identifier}-logs"
+            cw_resource_arn = f"arn:{partition}:logs:{self.input.data.region}:{account_id}:log-group:{log_group_name}:*"
             cw_results = self.aws_api.simulate_principal_policy(
                 role_arn=role_arn,
                 action_names=REQUIRED_CLOUDWATCH_ACTIONS,
-                resource_arns=["*"],
+                resource_arns=[cw_resource_arn],
             )
             for action, decision in cw_results.items():
                 if decision != "allowed":
                     self.errors.append(
-                        f"IAM role {role_arn} missing permission: {action} (result: {decision})"
+                        f"IAM role {role_arn} missing permission: {action} on {cw_resource_arn} (result: {decision})"
                     )
 
         # Check S3 log delivery permissions

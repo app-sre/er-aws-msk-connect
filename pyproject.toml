@@ -1,6 +1,6 @@
 [project]
 name = "er-aws-msk-connect"
-version = "0.2.2"
+version = "0.2.3"
 description = "ERv2 module for managing AWS MSK Connect connectors"
 authors = [{ name = "AppSRE", email = "sd-app-sre@redhat.com" }]
 license = { text = "Apache 2.0" }
