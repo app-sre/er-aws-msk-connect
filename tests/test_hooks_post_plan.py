@@ -242,6 +242,12 @@ def test_validate_iam_permissions_with_scoped_resources(
     assert calls[2].kwargs["resource_arns"] == [
         "arn:aws:kafka:us-east-1:123456789012:group/app-int-example-01-msk/dummy-uuid/test-group"
     ]
+    # S3 plugin
+    assert calls[3].kwargs["resource_arns"] == ["arn:aws:s3:::my-plugins-bucket/*"]
+    # CloudWatch log group — must use the actual log group ARN, not "*"
+    assert calls[4].kwargs["resource_arns"] == [
+        "arn:aws:logs:us-east-1:123456789012:log-group:my-test-connector-logs:*"
+    ]
 
 
 def test_validate_iam_permissions_missing_permission(
@@ -320,3 +326,45 @@ def test_validate_iam_permissions_uses_govcloud_plugin_bucket_arn(
         if call.kwargs.get("resource_arns") == [expected_s3_resource_arn]
     ]
     assert len(s3_plugin_calls) == 1
+
+
+def test_validate_iam_permissions_cloudwatch_govcloud_partition(
+    govcloud_ai_input: AppInterfaceInput,
+    mock_terraform_plan_parser: MagicMock,
+    mock_aws_api: MagicMock,
+) -> None:
+    """CloudWatch log group ARN must use aws-us-gov partition in GovCloud."""
+    data = govcloud_ai_input.data
+    subnets = data.vpc.subnets
+    security_groups = data.vpc.security_groups
+    govcloud_role_arn = "arn:aws-us-gov:iam::123456789012:role/my-msk-connect-role"
+
+    mock_aws_api.return_value.get_subnets.return_value = [
+        {"SubnetId": s, "VpcId": "vpc-123"} for s in subnets
+    ]
+    mock_aws_api.return_value.get_security_groups.return_value = [
+        {"GroupId": sg, "VpcId": "vpc-123"} for sg in security_groups
+    ]
+    mock_aws_api.return_value.validate_s3_object.return_value = True
+    mock_aws_api.return_value.iam_client.get_role.return_value = {
+        "Role": {"Arn": govcloud_role_arn}
+    }
+    mock_aws_api.return_value.simulate_principal_policy.return_value = {}
+
+    mock_terraform_plan_parser.plan.resource_changes = [
+        _make_connector_change(subnets, security_groups)
+    ]
+
+    validator = MskConnectPlanValidator(mock_terraform_plan_parser, govcloud_ai_input)
+    assert validator.validate()
+
+    calls = mock_aws_api.return_value.simulate_principal_policy.call_args_list
+    cw_calls = [
+        call
+        for call in calls
+        if any("logs:" in a for a in call.kwargs.get("action_names", []))
+    ]
+    assert len(cw_calls) == 1
+    assert cw_calls[0].kwargs["resource_arns"] == [
+        "arn:aws-us-gov:logs:us-gov-west-1:123456789012:log-group:my-test-connector-logs:*"
+    ]
