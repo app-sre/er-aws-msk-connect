@@ -37,7 +37,7 @@ def test_aws_api_init(mock_session: MagicMock, mock_botocore_config: MagicMock) 
 @pytest.fixture
 def aws_api(
     mock_session: MagicMock,
-    mock_botocore_config: MagicMock,  # noqa: ARG001
+    mock_botocore_config: MagicMock,  # ruff: ignore[unused-function-argument]
 ) -> tuple[AWSApi, MagicMock]:
     """
     Fixture for AWSApi with mocked Session and BotocoreConfig.

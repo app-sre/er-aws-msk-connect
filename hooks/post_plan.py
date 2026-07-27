@@ -146,7 +146,7 @@ class MskConnectPlanValidator:
             "group": [f"{arn_base}:group/{msk_cluster}/dummy-uuid/test-group"],
         }
 
-    def _validate_iam_permissions(self, role_arn: str) -> None:  # noqa: C901
+    def _validate_iam_permissions(self, role_arn: str) -> None:  # ruff: ignore[complex-structure]
         """Validate that the service execution role has the required IAM permissions."""
         logger.info(f"Validating IAM permissions for role {role_arn}")
 
@@ -237,7 +237,7 @@ class MskConnectPlanValidator:
         try:
             role = self.aws_api.iam_client.get_role(RoleName=role_name)
             return role["Role"]["Arn"]
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # ruff: ignore[blind-except]
             logger.warning(f"Could not look up IAM role '{role_name}': {e}")
             return None
 

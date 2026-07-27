@@ -92,7 +92,7 @@ class AWSApi:
         """Validate that an S3 bucket exists and is accessible."""
         try:
             self.s3_client.head_bucket(Bucket=bucket)
-        except Exception:  # noqa: BLE001
+        except Exception:  # ruff: ignore[blind-except]
             return False
         return True
 
@@ -105,6 +105,6 @@ class AWSApi:
                 self.s3_client.head_object(Bucket=bucket, Key=key, VersionId=version)
             else:
                 self.s3_client.head_object(Bucket=bucket, Key=key)
-        except Exception:  # noqa: BLE001
+        except Exception:  # ruff: ignore[blind-except]
             return False
         return True
